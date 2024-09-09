@@ -1,28 +1,36 @@
+from flask import Flask, request, jsonify
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores.faiss import FAISS
 from langchain.schema import Document
+from flask_cors import CORS  # Import CORS
 import openai
 import numpy as np
 import faiss
 import pandas as pd
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
+app = Flask(__name__)
+CORS(app)
+
+
+# Load OpenAI API key
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 if not openai_api_key:
     raise ValueError("The environment variable OPENAI_API_KEY is not set.")
 
-
-# Set your OpenAI API key
+# Set OpenAI API key
 openai.api_key = openai_api_key
 
-
-# Initialize the OpenAI embeddings
+# Initialize OpenAI embeddings
 embeddings = OpenAIEmbeddings(openai_api_key=openai.api_key)
 
-
+# Load the DataFrame
 df = pd.read_json('new_update.json')
-# # Flatten the section-content into a single string for each entry
+
+# # Flatten section-content into a single string for each entry
 # df['section-content-text'] = df['section-content'].apply(
 #     lambda x: ' '.join(x.get('Content', [])) if isinstance(x, dict) else ''
 # )
@@ -35,13 +43,15 @@ documents = [Document(page_content=text)
 # Initialize FAISS index
 faiss_index = FAISS.from_documents(documents, embeddings)
 
-# Save the FAISS index using FAISS library directly
-# faiss.write_index(faiss_index.index, "faiss_index.index")
 
-# Function to find similar sections based on a query
+@app.route('/find_similar_sections', methods=['POST'])
+def find_similar_sections():
+    # Get the query from the request
+    query = request.json.get('query', '')
 
+    if not query:
+        return jsonify({'error': 'Query parameter is required'}), 400
 
-def find_similar_sections(query, faiss_index, df, top_k=3):
     # Embed the query
     query_embedding = embeddings.embed_query(query)
 
@@ -49,21 +59,16 @@ def find_similar_sections(query, faiss_index, df, top_k=3):
     query_embedding = np.array([query_embedding], dtype=np.float32)
 
     # Search the FAISS index for the nearest neighbors
-    distances, indices = faiss_index.index.search(query_embedding, top_k)
+    distances, indices = faiss_index.index.search(query_embedding, 3)
 
     # Retrieve the corresponding rows from the DataFrame
     similar_sections = df.iloc[indices[0]]
 
-    return similar_sections
+    # Prepare the response
+    result = similar_sections[['chapter', 'Section']].to_dict(orient='records')
+
+    return jsonify(result)
 
 
-# Example query
-query = '''
-A large international company based in India, "GlobalTech Ltd.," entered into a commercial contract with a supplier, "EcoGoods Corp.," for the procurement of industrial machinery. The contract was valued at ₹4 million and included terms related to the delivery of machinery, payment schedules, and performance guarantees.
-'''
-
-# Find the top 3 similar sections
-similar_sections = find_similar_sections(query, faiss_index, df, top_k=3)
-
-# Display the results
-print(similar_sections[['chapter', 'Section']])
+if __name__ == '__main__':
+    app.run(debug=True)
