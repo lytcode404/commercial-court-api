@@ -1,0 +1,10 @@
+openai
+langchain
+faiss-cpu
+numpy
+pandas
+python-dotenv
+langchain-community
+tiktoken
+flask_cors
+gunicorn
