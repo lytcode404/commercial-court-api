@@ -65,7 +65,8 @@ def find_similar_sections():
     similar_sections = df.iloc[indices[0]]
 
     # Prepare the response
-    result = similar_sections[['chapter', 'Section']].to_dict(orient='records')
+    result = similar_sections[['chapter', 'Section',
+                               'chapter-title', 'section-content-text']].to_dict(orient='records')
 
     return jsonify(result)
 
